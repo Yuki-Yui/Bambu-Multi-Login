@@ -1,16 +1,5 @@
 @echo off
 chcp 65001 >nul
-:: 管理者権限で実行されているか確認
-net session >nul 2>&1
-if %errorlevel% neq 0 (
-    echo 管理者権限で再実行します...
-    if "%~1"=="" (
-        powershell -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
-    ) else (
-        powershell -Command "Start-Process -FilePath '%~f0' -ArgumentList '%*' -Verb RunAs"
-    )
-    exit /b
-)
 setlocal EnableDelayedExpansion
 
 :: 設定ディレクトリの定義
@@ -101,15 +90,17 @@ call :MENU
 
 :SWITCH_PROFILE
     :: 現在のシンボリックリンクのターゲットを取得
-    for /f "tokens=2 delims=[]" %%A in ('dir "%APPDATA%" ^| findstr /i "<SYMLINKD>"') do (
-        set "current_target=%%A"
+    for /f "tokens=2 delims=[]" %%F in ('dir "%APPDATA%" ^| findstr /i "<JUNCTION>"') do (
+        for %%P in (%%F) do (
+            set "current_profile=%%~nxP"
+        )
     )
 
-    echo Current target: !current_target!
+    echo Current profle: %current_profile%
     echo Selected profile: %selected_profile%
 
     :: ターゲットと選択されたプロファイルのパスを比較
-    if /I "!current_target!"=="%PROFILES_DIR%\%selected_profile%" (
+    if /I "%current_profile%"=="%selected_profile%" (
         echo The selected profile is already active. No changes made.
         call :START_BAMBU
         call :END
@@ -117,7 +108,7 @@ call :MENU
     )
 
     call :EXIT_BAMBU
-    call :CREATE_FOLDER %selected_profile%
+    call :CREATE_LINK %selected_profile%
     call :START_BAMBU
     call :END
     exit /b 0
@@ -137,7 +128,7 @@ call :MENU
     mkdir "%PROFILES_DIR%\%new_profile%"
     
     call :EXIT_BAMBU
-    call :CREATE_FOLDER %new_profile%
+    call :CREATE_LINK %new_profile%
     call :START_BAMBU
     call :END
     exit /b 0
@@ -187,11 +178,11 @@ call :MENU
     call :MENU
     exit /b 0
 
-:CREATE_FOLDER
+:CREATE_LINK
     call :REMOVE_FOLDER
     :: 選択されたプロファイルをシンボリックリンクとして作成
     echo Creating symbolic link to profile '%1'...
-    mklink /D "%APPDATA_DIR%" "%PROFILES_DIR%\%1" >nul
+    mklink /J "%APPDATA_DIR%" "%PROFILES_DIR%\%1" >nul
     exit /b 0
 
 :REMOVE_FOLDER
@@ -199,7 +190,7 @@ call :MENU
     if exist "%APPDATA_DIR%" (
         fsutil reparsepoint query "%APPDATA_DIR%" >nul 2>&1
         if !ERRORLEVEL!==0 (
-            echo Removing existing symbolic link...
+            echo Removing existing link...
             rmdir "%APPDATA_DIR%"
         ) else (
             echo Removing existing directory...
@@ -219,7 +210,7 @@ call :MENU
     tasklist /FI "IMAGENAME eq bambu-studio.exe" | find /I "bambu-studio.exe" >nul
     if !ERRORLEVEL! == 0 (
         echo Bambu Studio is currently running.
-        choice /C YN /M "Are you sure you want to switch profiles?"
+        choice /C YN /M "Are you sure you want to close and switch profiles?"
         if !ERRORLEVEL! NEQ 1 (
             echo Profile switch cancelled.
             call :MENU
