@@ -64,7 +64,7 @@ call :MENU
     :: ユーザーの選択を取得
     set "choice="
     set "selected_profile="
-    set /p choice=Enter your choice (1-%total%, N, D, E):
+    set /p choice="Enter your choice (1-%total%, N, D, E): "
 
     :: 入力の検証
     if /I "%choice%"=="N" (
@@ -117,10 +117,43 @@ call :MENU
         echo A profile with the same name already exists.
         pause
         call :MENU
+        exit /b 0
     )
 
     :: 新しいプロファイルディレクトリを作成
-    mkdir "%PROFILES_DIR%\%new_profile%"
+    choice /C YN /M "Do you want to copy data from other profile?"
+    if !ERRORLEVEL! EQU 1 (
+        echo Select a profile:
+
+        set /a index=0
+        for /d %%D in ("%PROFILES_DIR%\*") do (
+            set /a index+=1
+            set "profile[!index!]=%%~nxD"
+            echo !index!. %%~nxD
+        )
+        set "total="
+        set "choice="
+        set /a total=!index!
+        set /p choice="Enter your choice (1-!total!): "
+        :: コピーする
+        for /L %%i in (1,1,!total!) do (
+            if "!choice!"=="%%i" (
+                set "source_profile=!profile[%%i]!"
+            )
+        )
+        if defined source_profile (
+            echo Copying data from profile '!source_profile!' to new profile '%new_profile%'...
+            xcopy "%PROFILES_DIR%\!source_profile!\*" "%PROFILES_DIR%\%new_profile%\" /E /I /Y >nul
+            echo Data copied.
+        ) else (
+            echo Invalid selection.
+            pause
+            call :MENU
+            exit /b 0
+        )
+    ) else (
+        mkdir "%PROFILES_DIR%\%new_profile%"
+    )
     echo Profile '%new_profile%' was created.
 
     choice /C YN /M "Do you want to switch to the new profile?"
