@@ -46,11 +46,17 @@ call :MENU
     echo Select a profile:
 
     :: プロファイルの一覧を表示
+    call :GET_CURRENT_PROFILE
     set /a index=0
     for /d %%D in ("%PROFILES_DIR%\*") do (
         set /a index+=1
         set "profile[!index!]=%%~nxD"
-        echo !index!. %%~nxD
+        set "target=%%~nxD"
+        if /I "!current_profile!"=="!target!" (
+            echo !index!. !target!   *
+        ) else (
+            echo !index!. !target!
+        )
     )
     set /a total=!index!
 
