@@ -42,7 +42,7 @@ call :MENU
     exit
 
 :MENU
-    @REM cls
+    cls
     echo Select a profile:
 
     :: プロファイルの一覧を表示
@@ -85,17 +85,12 @@ call :MENU
     )
 
     echo Invalid selection.
+    pause
     call :MENU
     exit /b 0
 
 :SWITCH_PROFILE
-    :: 現在のシンボリックリンクのターゲットを取得
-    for /f "tokens=2 delims=[]" %%F in ('dir "%APPDATA%" ^| findstr /i "<JUNCTION>"') do (
-        for %%P in (%%F) do (
-            set "current_profile=%%~nxP"
-        )
-    )
-
+    call :GET_CURRENT_PROFILE
     echo Current profle: %current_profile%
     echo Selected profile: %selected_profile%
 
@@ -126,9 +121,23 @@ call :MENU
 
     :: 新しいプロファイルディレクトリを作成
     mkdir "%PROFILES_DIR%\%new_profile%"
-    
+    echo Profile '%new_profile%' was created.
+
+    choice /C YN /M "Do you want to switch to the new profile?"
+    if !ERRORLEVEL! NEQ 1 (
+        call :MENU
+        exit /b 1
+    )
+
     call :EXIT_BAMBU
     call :CREATE_LINK %new_profile%
+    
+    choice /C YN /M "Do you want to open Bambu Studio with the new profile?"
+    if !ERRORLEVEL! NEQ 1 (
+        call :MENU
+        exit /b 1
+    )
+    
     call :START_BAMBU
     call :END
     exit /b 0
@@ -137,28 +146,43 @@ call :MENU
     set "delete_profile="
     set /p delete_profile=Enter profile name to delete: 
 
-    :: 同名のプロファイルが存在するか確認
     if "%delete_profile%"=="" (
         call :MENU
         exit /b 0
-    ) else if exist "%PROFILES_DIR%\%delete_profile%" (
-        choice /C YN /M "Are you sure you want to delete profile '!delete_profile!'?"
-        if !ERRORLEVEL! NEQ 1 (
-            echo Profile deletion cancelled.
-            call :MENU
-            exit /b 1
-        )
-        echo Deleting profile '!delete_profile!'...
-        :: プロファイルディレクトリを削除
-        rmdir /s /q "%PROFILES_DIR%\!delete_profile!"
-        echo Profile '%delete_profile%' deleted.
-        pause
-        cls
-        call :MENU
-    ) else (
+    ) else if not exist "%PROFILES_DIR%\%delete_profile%" (
         echo Profile '%delete_profile%' does not exist.
         call :DELETE_PROFILE
+        exit /b 0
     )
+
+    choice /C YN /M "Are you sure you want to delete profile '!delete_profile!'?"
+    if !ERRORLEVEL! NEQ 1 (
+        echo Profile deletion cancelled.
+        call :MENU
+        exit /b 1
+    )
+    call :GET_CURRENT_PROFILE
+    call :GET_BAMBU_ACTIVE
+    if /I "%current_profile%"=="%delete_profile%" (
+        if /I !bambu_is_active! == 1 (
+            echo The selected profile is currently active.
+            choice /C YN /M "Do you want to close Bambu Studio and delete the profile?"
+            if !ERRORLEVEL! NEQ 1 (
+                echo Profile deletion cancelled.
+                call :MENU
+                exit /b 1
+            )
+            call :EXIT_BAMBU
+            call :REMOVE_FOLDER
+        )
+    )
+    :: プロファイルディレクトリを削除
+    echo Deleting profile '!delete_profile!'...
+    rmdir /s /q "%PROFILES_DIR%\!delete_profile!"
+    echo Profile '%delete_profile%' deleted.
+    pause
+    cls
+    call :MENU
     exit /b 0
 
 :CLEAR_FOLDER
@@ -167,7 +191,7 @@ call :MENU
     call :MENU
     exit /b 0
 
-:CLEATE_CLEAN_FOLDER
+:CREATE_CLEAN_FOLDER
     call :EXIT_BAMBU
     call :REMOVE_FOLDER
 
@@ -207,10 +231,10 @@ call :MENU
 
 :EXIT_BAMBU
     :: Bambu Studio が起動している場合、終了する
-    tasklist /FI "IMAGENAME eq bambu-studio.exe" | find /I "bambu-studio.exe" >nul
-    if !ERRORLEVEL! == 0 (
+    call :GET_BAMBU_ACTIVE
+    if !bambu_is_active! == 1 (
         echo Bambu Studio is currently running.
-        choice /C YN /M "Are you sure you want to close and switch profiles?"
+        choice /C YN /M "Are you sure you want to close Bambu Studio?"
         if !ERRORLEVEL! NEQ 1 (
             echo Profile switch cancelled.
             call :MENU
@@ -219,5 +243,25 @@ call :MENU
         echo Closing Bambu Studio...
         taskkill /F /IM bambu-studio.exe /T >nul
         timeout /t 3 /nobreak >nul
+    )
+    exit /b 0
+
+:GET_CURRENT_PROFILE
+    set "current_profile="
+    :: 現在のシンボリックリンクのターゲットを取得
+    for /f "tokens=2 delims=[]" %%F in ('dir "%APPDATA%" ^| findstr /i "<JUNCTION>"') do (
+        for %%P in (%%F) do (
+            set "current_profile=%%~nxP"
+        )
+    )
+    exit /b 0
+
+:GET_BAMBU_ACTIVE
+    set "bambu_is_active="
+    tasklist /FI "IMAGENAME eq bambu-studio.exe" | find /I "bambu-studio.exe" >nul
+    if !ERRORLEVEL! == 0 (
+        set "bambu_is_active=1"
+    ) else (
+        set "bambu_is_active=0"
     )
     exit /b 0
