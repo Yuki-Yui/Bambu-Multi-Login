@@ -118,6 +118,15 @@ call :MENU
 :CREATE_PROFILE
     :: 新しいプロファイル名の入力
     set /p new_profile=Enter new profile name: 
+    if "%new_profile%"=="" (
+        call :MENU
+        exit /b 0
+    ) else if "%new_profile%"=="*" (
+        echo Invalid profile name.
+        pause
+        call :CREATE_PROFILE
+        exit /b 0
+    )
 
     :: 同名のプロファイルが存在するか確認
     if exist "%PROFILES_DIR%\%new_profile%" (
@@ -128,7 +137,7 @@ call :MENU
     )
 
     :: 新しいプロファイルディレクトリを作成
-    choice /C YN /M "Do you want to copy data from other profile?"
+    choice /C YN /M "Do you want to copy data from other profile or current directory?"
     if !ERRORLEVEL! EQU 1 (
         echo Select a profile:
 
@@ -138,26 +147,50 @@ call :MENU
             set "profile[!index!]=%%~nxD"
             echo !index!. %%~nxD
         )
+        echo.
+        echo C. Copy from current directory
+        echo.
         set "total="
         set "choice="
         set /a total=!index!
-        set /p choice="Enter your choice (1-!total!): "
+        set /p choice="Enter your choice (1-!total!, C): "
+        
         :: コピーする
-        for /L %%i in (1,1,!total!) do (
-            if "!choice!"=="%%i" (
-                set "source_profile=!profile[%%i]!"
+        set "source_dir="
+        if /I "!choice!"=="" (
+            call :MENU
+            exit /b 0
+        ) else if /I "!choice!"=="C" (
+            echo Copying from current directory...
+            set "source_dir=%APPDATA_DIR%"
+            set "source_profile=<Current Directory>"
+        ) else (
+            for /L %%i in (1,1,!total!) do (
+                if "!choice!"=="%%i" (
+                    set "source_profile=!profile[%%i]!"
+                    set "source_dir=%PROFILES_DIR%\!source_profile!"
+                )
             )
         )
-        if defined source_profile (
-            echo Copying data from profile '!source_profile!' to new profile '%new_profile%'...
-            xcopy "%PROFILES_DIR%\!source_profile!\*" "%PROFILES_DIR%\%new_profile%\" /E /I /Y >nul
-            echo Data copied.
-        ) else (
-            echo Invalid selection.
+
+        if not exist "!source_dir!" (
+            echo Do not exist the profile '!source_dir!'.
             pause
             call :MENU
             exit /b 0
         )
+
+        echo Selected profile: !source_dir!
+        if /I "!source_dir!"=="%PROFILES_DIR%\%new_profile%" (
+            echo Error: Source and target directories are the same. Cannot perform a cyclic copy.
+            pause
+            call :MENU
+            exit /b 0
+        )
+        echo Copying data from '!source_profile!' to '%new_profile%'...
+        mkdir "%PROFILES_DIR%\%new_profile%"
+        xcopy "!source_dir!\*" "%PROFILES_DIR%\%new_profile%\" /E /I /Y >nul
+        echo Data copied.
     ) else (
         mkdir "%PROFILES_DIR%\%new_profile%"
     )
@@ -207,9 +240,9 @@ call :MENU
         if /I !bambu_is_active! == 1 (
             echo The selected profile is currently active. It needs to close Bambu Studio before deletion.
             call :EXIT_BAMBU
-            call :REMOVE_FOLDER
-            call :REMOVE_LOCAL_DIR
         )
+        call :REMOVE_FOLDER
+        call :REMOVE_LOCAL_DIR
     )
     :: プロファイルディレクトリを削除
     echo Deleting profile '!delete_profile!'...
@@ -243,7 +276,7 @@ call :MENU
     call :REMOVE_FOLDER
     call :REMOVE_LOCAL_DIR
     :: 選択されたプロファイルをシンボリックリンクとして作成
-    echo Creating symbolic link to profile '%1'...
+    echo Creating link to profile '%1'...
     mklink /J "%APPDATA_DIR%" "%PROFILES_DIR%\%1" >nul
     exit /b 0
 
@@ -297,7 +330,7 @@ call :MENU
 :GET_BAMBU_ACTIVE
     set "bambu_is_active="
     tasklist /FI "IMAGENAME eq bambu-studio.exe" | find /I "bambu-studio.exe" >nul
-    if !ERRORLEVEL! == 0 (
+    if !ERRORLEVEL! EQU 0 (
         set "bambu_is_active=1"
     ) else (
         set "bambu_is_active=0"
