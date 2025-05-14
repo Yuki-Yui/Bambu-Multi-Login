@@ -4,6 +4,7 @@ setlocal EnableDelayedExpansion
 
 :: 設定ディレクトリの定義
 set "APPDATA_DIR=%APPDATA%\BambuStudio"
+set "%LOCALAPPDATA_DIR%=%LOCALAPPDATA%\BambuStudio"
 set "PROFILES_DIR=%APPDATA%\BambuStudio_Profiles"
 set "BAMBU_EXE=C:\Program Files\Bambu Studio\bambu-studio.exe"
 
@@ -204,15 +205,10 @@ call :MENU
     call :GET_BAMBU_ACTIVE
     if /I "%current_profile%"=="%delete_profile%" (
         if /I !bambu_is_active! == 1 (
-            echo The selected profile is currently active.
-            choice /C YN /M "Do you want to close Bambu Studio and delete the profile?"
-            if !ERRORLEVEL! NEQ 1 (
-                echo Profile deletion cancelled.
-                call :MENU
-                exit /b 1
-            )
+            echo The selected profile is currently active. It needs to close Bambu Studio before deletion.
             call :EXIT_BAMBU
             call :REMOVE_FOLDER
+            call :REMOVE_LOCAL_DIR
         )
     )
     :: プロファイルディレクトリを削除
@@ -227,12 +223,14 @@ call :MENU
 :CLEAR_FOLDER
     call :EXIT_BAMBU
     call :REMOVE_FOLDER
+    call :REMOVE_LOCAL_DIR
     call :MENU
     exit /b 0
 
 :CREATE_CLEAN_FOLDER
     call :EXIT_BAMBU
     call :REMOVE_FOLDER
+    call :REMOVE_LOCAL_DIR
 
     :: 空のディレクトリを作成
     mkdir "%APPDATA_DIR%"
@@ -243,6 +241,7 @@ call :MENU
 
 :CREATE_LINK
     call :REMOVE_FOLDER
+    call :REMOVE_LOCAL_DIR
     :: 選択されたプロファイルをシンボリックリンクとして作成
     echo Creating symbolic link to profile '%1'...
     mklink /J "%APPDATA_DIR%" "%PROFILES_DIR%\%1" >nul
@@ -251,14 +250,13 @@ call :MENU
 :REMOVE_FOLDER
     :: 現在のシンボリックリンク、ディレクトリを削除
     if exist "%APPDATA_DIR%" (
-        fsutil reparsepoint query "%APPDATA_DIR%" >nul 2>&1
-        if !ERRORLEVEL!==0 (
-            echo Removing existing link...
-            rmdir "%APPDATA_DIR%"
-        ) else (
-            echo Removing existing directory...
-            rd /s /q "%APPDATA_DIR%"
-        )
+        rmdir /s /q "%APPDATA_DIR%"
+    )
+    exit /b 0
+
+:REMOVE_LOCAL_DIR
+    if exist "%LOCALAPPDATA_DIR%" (
+        rmdir /s /q "%LOCALAPPDATA_DIR%"
     )
     exit /b 0
 
@@ -275,7 +273,8 @@ call :MENU
         echo Bambu Studio is currently running.
         choice /C YN /M "Are you sure you want to close Bambu Studio?"
         if !ERRORLEVEL! NEQ 1 (
-            echo Profile switch cancelled.
+            echo Bambu Studio closing cancelled.
+            pause
             call :MENU
             exit /b 1
         )
