@@ -100,7 +100,13 @@ call :MENU
 :CREATE_ENV
     echo Start creating environment...
     pause
-    echo 1. Creating profile directory. 
+    echo 1. Creating profile directory.
+    set "BACKUP_DIR=%APPDATA%\BambuStudio_Backup"
+    if exist "%APPDATA_DIR%" (
+        echo Backing up current data to '!BACKUP_DIR!'...
+        mkdir "!BACKUP_DIR!"
+        xcopy "%APPDATA_DIR%\*" "!BACKUP_DIR!" /E /I /Y >nul
+    )
     mkdir "%PROFILES_DIR%"
     echo done.
     echo 2. Creating new profile.
@@ -133,9 +139,9 @@ call :MENU
             echo Data copied.
         )
     ) else (
-        echo Copying from current directory cancelled.
+        echo '!new_profile!' is empty.
         pause
-        call :END
+        call :MENU
         exit /b 0
     )
 
