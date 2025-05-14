@@ -8,9 +8,10 @@ set "%LOCALAPPDATA_DIR%=%LOCALAPPDATA%\BambuStudio"
 set "PROFILES_DIR=%APPDATA%\BambuStudio_Profiles"
 set "BAMBU_EXE=C:\Program Files\Bambu Studio\bambu-studio.exe"
 
-:: プロファイルディレクトリが存在しない場合、作成
+:: プロファイルディレクトリが存在しない場合、環境構築を実施
 if not exist "%PROFILES_DIR%" (
-    mkdir "%PROFILES_DIR%"
+    call :CREATE_ENV
+    call :END
 )
 
 :: 引数が指定された場合、そのプロファイルに切り替え
@@ -94,6 +95,69 @@ call :MENU
     echo Invalid selection.
     pause
     call :MENU
+    exit /b 0
+
+:CREATE_ENV
+    echo Start creating environment...
+    pause
+    echo 1. Creating profile directory. 
+    mkdir "%PROFILES_DIR%"
+    echo done.
+    echo 2. Creating new profile.
+    set /p new_profile=Enter new profile name: 
+    if "%new_profile%"=="" (
+        choice /C YN /M "Do you want to stop creating environment?"
+        if !ERRORLEVEL! NEQ 1 (
+            rd /s /q "%PROFILES_DIR%"
+            echo Environment creation cancelled.
+            pause
+            call :END
+            exit /b 0
+        )
+        call :CREATE_ENV
+        exit /b 0
+    )
+    mkdir "%PROFILES_DIR%\%new_profile%"
+    echo done.
+    echo 3. Copying data from current directory.
+    choice /C YN /M "Do you want to copy data from current directory?"
+    if !ERRORLEVEL! EQU 1 (
+        echo Copying from current directory...
+        set "source_dir=%APPDATA_DIR%"
+        if not exist "!source_dir!" (
+            echo Do not exist BambuStudio data '!source_dir!'.
+        ) else (
+            echo Detected current BambuStudio data.
+            echo Copying data to '%new_profile%'...
+            xcopy "!source_dir!\*" "%PROFILES_DIR%\%new_profile%\" /E /I /Y >nul
+            echo Data copied.
+        )
+    ) else (
+        echo Copying from current directory cancelled.
+        pause
+        call :END
+        exit /b 0
+    )
+
+    echo done.
+    echo 4. Change profile and open Bambu Studio.
+    choice /C YN /M "Do you want to switch to the new profile?"
+    if !ERRORLEVEL! NEQ 1 (
+        call :MENU
+        exit /b 1
+    )
+
+    call :EXIT_BAMBU
+    call :CREATE_LINK %new_profile%
+    
+    choice /C YN /M "Do you want to open Bambu Studio with the new profile?"
+    if !ERRORLEVEL! NEQ 1 (
+        call :MENU
+        exit /b 1
+    )
+    
+    call :START_BAMBU
+    call :END
     exit /b 0
 
 :SWITCH_PROFILE
