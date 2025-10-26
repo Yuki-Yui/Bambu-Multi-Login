@@ -67,6 +67,7 @@ call :MENU
     :: echo C. Clean directory
     echo D. Delete profile
     echo E. Exit
+    echo no input. Open Bambu Studio with current profile
     echo.
 
     :: ユーザーの選択を取得
@@ -91,10 +92,9 @@ call :MENU
             )
         )
     )
-
-    echo Invalid selection.
-    pause
-    call :MENU
+    
+    call :START_BAMBU
+    call :END
     exit /b 0
 
 :CREATE_ENV
